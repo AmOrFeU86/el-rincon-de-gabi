@@ -27,6 +27,8 @@ class Video(Base):
     tema_id = Column(String, ForeignKey('temas.id', ondelete='CASCADE'), nullable=False, index=True)
     youtube_id = Column(String, nullable=False)
     titulo = Column(String)
+    descripcion = Column(Text)  # Descripción completa del video
+    tags = Column(Text)  # Tags del video (separados por comas)
     orden = Column(Integer, default=0)
 
     # Relación
@@ -52,6 +54,8 @@ class VideoResponse(BaseModel):
     id: int
     youtube_id: str
     titulo: str | None
+    descripcion: str | None
+    tags: str | None
     orden: int
 
     class Config:
