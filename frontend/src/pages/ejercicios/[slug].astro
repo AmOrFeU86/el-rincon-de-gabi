@@ -1,0 +1,121 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Header from '../../components/Header.astro';
+import Footer from '../../components/Footer.astro';
+import VideoPlayer from '../../components/VideoPlayer.astro';
+import Quiz from '../../components/Quiz.astro';
+import CodeExercise from '../../components/CodeExercise.astro';
+import WrittenExercise from '../../components/WrittenExercise.astro';
+
+interface Ejercicio {
+  id: string;
+  titulo: string;
+  tipo: 'quiz' | 'codigo' | 'escrito';
+  videoId?: string;
+  preguntas: unknown[];
+}
+
+export async function getStaticPaths() {
+  try {
+    const response = await fetch('http://localhost:8000/ejercicios');
+    const ejercicios: Ejercicio[] = await response.json();
+    return ejercicios.map((ej) => ({ params: { slug: ej.id } }));
+  } catch {
+    return [];
+  }
+}
+
+const API_URL = 'http://localhost:8000';
+const { slug } = Astro.params;
+
+let ejercicio: Ejercicio | null = null;
+let error: string | null = null;
+
+try {
+  const response = await fetch(`${API_URL}/ejercicios/${slug}`);
+  if (response.ok) {
+    ejercicio = await response.json();
+  } else {
+    error = 'Ejercicio no encontrado';
+  }
+} catch (e) {
+  error = 'Error cargando el ejercicio';
+}
+
+const tipoLabel: Record<string, string> = {
+  quiz: 'Cuestionario tipo test',
+  codigo: 'Completar código',
+  escrito: 'Respuesta escrita'
+};
+---
+
+<Layout title={ejercicio?.titulo || 'Ejercicio'}>
+  <div class="flex flex-col min-h-screen">
+    <Header />
+
+    <main class="flex-1 py-8">
+      <div class="max-w-5xl mx-auto px-4">
+        {error ? (
+          <div class="bg-red-500/20 border border-red-500 rounded-xl p-8 text-center">
+            <p class="text-red-400 text-xl">{error}</p>
+            <a href="/" class="inline-block mt-4 text-primary-400 hover:underline">
+              Volver al inicio
+            </a>
+          </div>
+        ) : ejercicio && (
+          <>
+            <!-- Breadcrumb -->
+            <nav class="mb-6 text-sm text-gray-400">
+              <a href="/" class="hover:text-primary-400">Inicio</a>
+              <span class="mx-2">/</span>
+              <a href="/#ejercicios" class="hover:text-primary-400">Ejercicios</a>
+              <span class="mx-2">/</span>
+              <span class="text-gray-300">{ejercicio.titulo}</span>
+            </nav>
+
+            <!-- Header -->
+            <div class="mb-8">
+              <div class="flex items-center gap-3 mb-3">
+                <span class="text-xs bg-primary-500/20 text-primary-400 px-3 py-1.5 rounded-full font-medium">
+                  {tipoLabel[ejercicio.tipo] || ejercicio.tipo}
+                </span>
+              </div>
+              <h1 class="text-3xl font-bold">{ejercicio.titulo}</h1>
+            </div>
+
+            <!-- Video -->
+            {ejercicio.videoId && (
+              <div class="mb-8">
+                <VideoPlayer videoId={ejercicio.videoId} title={ejercicio.titulo} />
+              </div>
+            )}
+
+            <!-- Ejercicio -->
+            <div class="flex items-center gap-3 mb-6">
+              <div class="w-10 h-10 bg-gradient-to-br from-primary-500 to-accent-500 rounded-xl flex items-center justify-center">
+                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+              </div>
+              <h2 class="text-xl font-bold">Ejercicio</h2>
+            </div>
+
+            {ejercicio.tipo === 'quiz' && (
+              <Quiz ejercicioId={ejercicio.id} preguntas={ejercicio.preguntas} />
+            )}
+
+            {ejercicio.tipo === 'codigo' && (
+              <CodeExercise ejercicioId={ejercicio.id} preguntas={ejercicio.preguntas} />
+            )}
+
+            {ejercicio.tipo === 'escrito' && (
+              <WrittenExercise ejercicioId={ejercicio.id} preguntas={ejercicio.preguntas} />
+            )}
+          </>
+        )}
+      </div>
+    </main>
+
+    <Footer />
+  </div>
+</Layout>

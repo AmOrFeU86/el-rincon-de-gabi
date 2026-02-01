@@ -1,0 +1,103 @@
+---
+interface Props {
+  ejercicioId: string;
+  preguntas: Array<{
+    codigo: string;
+    huecos: Array<{
+      id: string;
+      opciones?: string[];
+      respuesta: string;
+    }>;
+  }>;
+}
+
+const { ejercicioId, preguntas } = Astro.props;
+---
+
+<div
+  x-data={`{
+    respuestas: {},
+    enviado: false,
+    puntuacion: 0,
+
+    verificar() {
+      const correctas = ${JSON.stringify(preguntas.flatMap(p => p.huecos.map(h => ({ id: h.id, respuesta: h.respuesta }))))};
+      let aciertos = 0;
+
+      correctas.forEach(({ id, respuesta }) => {
+        if (this.respuestas[id]?.toLowerCase().trim() === respuesta.toLowerCase().trim()) {
+          aciertos++;
+        }
+      });
+
+      this.puntuacion = Math.round((aciertos / correctas.length) * 100);
+      this.enviado = true;
+
+      // Marcar ejercicio como completado
+      const completed = JSON.parse(localStorage.getItem('completedExercises') || '{}');
+      completed['${ejercicioId}'] = { puntuacion: this.puntuacion, fecha: new Date().toISOString() };
+      localStorage.setItem('completedExercises', JSON.stringify(completed));
+    },
+
+    esCorrecta(id) {
+      const correcta = ${JSON.stringify(preguntas.flatMap(p => p.huecos.map(h => ({ id: h.id, respuesta: h.respuesta }))))}.find(h => h.id === id);
+      return this.enviado && this.respuestas[id]?.toLowerCase().trim() === correcta?.respuesta.toLowerCase().trim();
+    }
+  }`}
+  class="space-y-6"
+>
+  {preguntas.map((pregunta, pIdx) => (
+    <div class="bg-gray-800 rounded-xl p-6">
+      <pre class="bg-gray-900 rounded-lg p-4 overflow-x-auto text-sm"><code set:html={pregunta.codigo.replace(/\{\{(\w+)\}\}/g, (match, id) => {
+        const hueco = pregunta.huecos.find(h => h.id === id);
+        if (hueco?.opciones) {
+          return `<select
+            x-model="respuestas['${id}']"
+            x-bind:disabled="enviado"
+            x-bind:class="enviado ? (esCorrecta('${id}') ? 'bg-green-500/30 border-green-500' : 'bg-red-500/30 border-red-500') : 'bg-gray-700'"
+            class="border border-gray-600 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+          >
+            <option value="">Selecciona...</option>
+            ${hueco.opciones.map(o => `<option value="${o}">${o}</option>`).join('')}
+          </select>`;
+        } else {
+          return `<input
+            type="text"
+            x-model="respuestas['${id}']"
+            x-bind:disabled="enviado"
+            x-bind:class="enviado ? (esCorrecta('${id}') ? 'bg-green-500/30 border-green-500' : 'bg-red-500/30 border-red-500') : 'bg-gray-700'"
+            placeholder="..."
+            class="border border-gray-600 rounded px-2 py-1 w-32 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+          />`;
+        }
+      })} /></pre>
+    </div>
+  ))}
+
+  <!-- Botón verificar -->
+  <div x-show="!enviado" class="flex justify-center">
+    <button
+      type="button"
+      x-on:click="verificar()"
+      class="bg-primary-600 hover:bg-primary-700 text-white font-semibold px-8 py-3 rounded-xl transition-colors"
+    >
+      Verificar código
+    </button>
+  </div>
+
+  <!-- Resultado -->
+  <div
+    x-show="enviado"
+    x-cloak
+    class="bg-gray-800 rounded-xl p-6 text-center"
+  >
+    <div class="text-4xl font-bold mb-2" x-bind:class="puntuacion >= 70 ? 'text-green-400' : 'text-yellow-400'">
+      <span x-text="puntuacion"></span>%
+    </div>
+    <p class="text-gray-400" x-text="puntuacion >= 70 ? '¡Código correcto!' : 'Revisa tu código'"></p>
+  </div>
+</div>
+
+<style>
+  [x-cloak] { display: none !important; }
+</style>

@@ -1,0 +1,126 @@
+---
+interface Props {
+  ejercicioId: string;
+  preguntas: Array<{
+    pregunta: string;
+    contexto?: string;
+  }>;
+}
+
+const { ejercicioId, preguntas } = Astro.props;
+---
+
+<div
+  x-data={`{
+    respuestas: {},
+    enviado: false,
+    verificando: false,
+    puntuacion: 0,
+    feedback: {},
+
+    async verificar() {
+      const preguntasData = ${JSON.stringify(preguntas)};
+      const respuestasArray = preguntasData.map((p, idx) => ({
+        pregunta: p.pregunta,
+        contexto: p.contexto || '',
+        respuesta: this.respuestas[idx] || ''
+      }));
+
+      if (respuestasArray.some(r => !r.respuesta.trim())) {
+        alert('Por favor responde todas las preguntas');
+        return;
+      }
+
+      this.verificando = true;
+
+      try {
+        const response = await fetch('http://localhost:8000/verificar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tipo: 'escrito',
+            ejercicio_id: '${ejercicioId}',
+            respuestas: respuestasArray
+          })
+        });
+
+        const data = await response.json();
+        this.puntuacion = data.puntuacion;
+        this.feedback = data.feedback || {};
+        this.enviado = true;
+
+        // Marcar ejercicio como completado
+        const completed = JSON.parse(localStorage.getItem('completedExercises') || '{}');
+        completed['${ejercicioId}'] = { puntuacion: this.puntuacion, fecha: new Date().toISOString() };
+        localStorage.setItem('completedExercises', JSON.stringify(completed));
+      } catch (e) {
+        console.error('Error verificando:', e);
+        alert('Error al verificar las respuestas');
+      } finally {
+        this.verificando = false;
+      }
+    }
+  }`}
+  class="space-y-6"
+>
+  {preguntas.map((pregunta, pIdx) => (
+    <div class="bg-gray-800 rounded-xl p-6">
+      <h3 class="text-lg font-semibold mb-2">
+        <span class="text-primary-400">{pIdx + 1}.</span> {pregunta.pregunta}
+      </h3>
+      {pregunta.contexto && (
+        <p class="text-gray-400 text-sm mb-4">{pregunta.contexto}</p>
+      )}
+
+      <textarea
+        x-model={`respuestas[${pIdx}]`}
+        x-bind:disabled="enviado"
+        rows="4"
+        placeholder="Escribe tu respuesta aquí..."
+        class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
+      ></textarea>
+
+      <div
+        x-show={`enviado && feedback[${pIdx}]`}
+        x-cloak
+        class="mt-4 p-4 rounded-lg bg-gray-700/50"
+      >
+        <p class="text-sm text-gray-300" x-html={`feedback[${pIdx}]`}></p>
+      </div>
+    </div>
+  ))}
+
+  <!-- Botón verificar -->
+  <div x-show="!enviado" class="flex justify-center">
+    <button
+      type="button"
+      x-on:click="verificar()"
+      x-bind:disabled="verificando"
+      class="bg-primary-600 hover:bg-primary-700 disabled:bg-gray-600 text-white font-semibold px-8 py-3 rounded-xl transition-colors flex items-center gap-2"
+    >
+      <span x-show="verificando" class="animate-spin">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+      </span>
+      <span x-text="verificando ? 'Verificando con IA...' : 'Verificar con IA'"></span>
+    </button>
+  </div>
+
+  <!-- Resultado -->
+  <div
+    x-show="enviado"
+    x-cloak
+    class="bg-gray-800 rounded-xl p-6 text-center"
+  >
+    <div class="text-4xl font-bold mb-2" x-bind:class="puntuacion >= 70 ? 'text-green-400' : 'text-yellow-400'">
+      <span x-text="puntuacion"></span>%
+    </div>
+    <p class="text-gray-400" x-text="puntuacion >= 70 ? '¡Muy bien explicado!' : 'Puedes mejorar tu explicación'"></p>
+  </div>
+</div>
+
+<style>
+  [x-cloak] { display: none !important; }
+</style>

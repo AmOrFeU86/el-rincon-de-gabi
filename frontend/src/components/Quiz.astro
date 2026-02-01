@@ -1,0 +1,111 @@
+---
+interface Props {
+  ejercicioId: string;
+  preguntas: Array<{
+    pregunta: string;
+    opciones: string[];
+    correcta: number;
+  }>;
+}
+
+const { ejercicioId, preguntas } = Astro.props;
+---
+
+<div
+  x-data={`{
+    respuestas: {},
+    enviado: false,
+    puntuacion: 0,
+
+    seleccionar(preguntaIdx, opcionIdx) {
+      if (this.enviado) return;
+      this.respuestas[preguntaIdx] = opcionIdx;
+    },
+
+    verificar() {
+      if (Object.keys(this.respuestas).length < ${preguntas.length}) {
+        alert('Por favor responde todas las preguntas');
+        return;
+      }
+
+      const correctas = ${JSON.stringify(preguntas.map(p => p.correcta))};
+      let aciertos = 0;
+
+      correctas.forEach((correcta, idx) => {
+        if (this.respuestas[idx] === correcta) aciertos++;
+      });
+
+      this.puntuacion = Math.round((aciertos / correctas.length) * 100);
+      this.enviado = true;
+
+      // Marcar ejercicio como completado
+      const completed = JSON.parse(localStorage.getItem('completedExercises') || '{}');
+      completed['${ejercicioId}'] = { puntuacion: this.puntuacion, fecha: new Date().toISOString() };
+      localStorage.setItem('completedExercises', JSON.stringify(completed));
+    },
+
+    esCorrecta(preguntaIdx, opcionIdx) {
+      return this.enviado && ${JSON.stringify(preguntas.map(p => p.correcta))}[preguntaIdx] === opcionIdx;
+    },
+
+    esIncorrecta(preguntaIdx, opcionIdx) {
+      return this.enviado && this.respuestas[preguntaIdx] === opcionIdx && !this.esCorrecta(preguntaIdx, opcionIdx);
+    }
+  }`}
+  class="space-y-6"
+>
+  {preguntas.map((pregunta, pIdx) => (
+    <div class="bg-gray-800 rounded-xl p-6">
+      <h3 class="text-lg font-semibold mb-4">
+        <span class="text-primary-400">{pIdx + 1}.</span> {pregunta.pregunta}
+      </h3>
+
+      <div class="space-y-2">
+        {pregunta.opciones.map((opcion, oIdx) => (
+          <button
+            type="button"
+            x-on:click={`seleccionar(${pIdx}, ${oIdx})`}
+            x-bind:class={`{
+              'ring-2 ring-primary-500 bg-primary-500/20': respuestas[${pIdx}] === ${oIdx} && !enviado,
+              'ring-2 ring-green-500 bg-green-500/20': esCorrecta(${pIdx}, ${oIdx}),
+              'ring-2 ring-red-500 bg-red-500/20': esIncorrecta(${pIdx}, ${oIdx}),
+              'hover:bg-gray-700': !enviado,
+              'cursor-not-allowed opacity-60': enviado && respuestas[${pIdx}] !== ${oIdx} && !esCorrecta(${pIdx}, ${oIdx})
+            }`}
+            class="w-full text-left p-4 rounded-lg bg-gray-700/50 transition-all"
+          >
+            <span class="font-mono text-gray-400 mr-3">{String.fromCharCode(65 + oIdx)})</span>
+            {opcion}
+          </button>
+        ))}
+      </div>
+    </div>
+  ))}
+
+  <!-- Botón verificar -->
+  <div x-show="!enviado" class="flex justify-center">
+    <button
+      type="button"
+      x-on:click="verificar()"
+      class="bg-primary-600 hover:bg-primary-700 text-white font-semibold px-8 py-3 rounded-xl transition-colors"
+    >
+      Verificar respuestas
+    </button>
+  </div>
+
+  <!-- Resultado -->
+  <div
+    x-show="enviado"
+    x-cloak
+    class="bg-gray-800 rounded-xl p-6 text-center"
+  >
+    <div class="text-4xl font-bold mb-2" x-bind:class="puntuacion >= 70 ? 'text-green-400' : 'text-yellow-400'">
+      <span x-text="puntuacion"></span>%
+    </div>
+    <p class="text-gray-400" x-text="puntuacion >= 70 ? '¡Excelente trabajo!' : 'Sigue practicando'"></p>
+  </div>
+</div>
+
+<style>
+  [x-cloak] { display: none !important; }
+</style>
